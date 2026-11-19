@@ -22,10 +22,8 @@ if uploaded_file is not None:
     original_name, ext = os.path.splitext(uploaded_file.name)
     keep_vba = (ext.lower() == ".xlsm")
     
-    # 事前スキャン用に一度読み込み
     wb_scan = openpyxl.load_workbook(uploaded_file, keep_vba=keep_vba)
     
-    # ファイル内の「202X年 / 202X年度」や日付データを事前検出
     found_years = set()
     found_samples = []
     
@@ -57,7 +55,6 @@ if uploaded_file is not None:
     else:
         st.info("シート内から特定の年号（202X）は検出されませんでした。")
 
-    # ユーザーに変更方式を選んでもらう
     year_mode = st.radio(
         "📅 年号・日付の変更方式を選んでください：",
         options=[
@@ -88,7 +85,6 @@ if uploaded_file is not None:
 
     keyword_list = [k.strip() for k in protect_keywords.split(",") if k.strip()]
 
-    # 本処理用のワークブック読み込み
     uploaded_file.seek(0)
     wb = openpyxl.load_workbook(uploaded_file, keep_vba=keep_vba)
     
@@ -97,7 +93,6 @@ if uploaded_file is not None:
     WEEKDAYS_JP = ["月", "火", "水", "木", "金", "土", "日"]
 
     def shift_all_years_in_text(text):
-        """文字列内の2020〜2035のすべての西暦を+1する（重複置換を防ぐため一括関数で処理）"""
         return re.sub(r'20(2\d|3[0-5])', lambda m: str(int(m.group(0)) + 1), text)
 
     def format_weekday(old_str, new_wd_index):
@@ -111,7 +106,6 @@ if uploaded_file is not None:
         return None
 
     for sheet in wb.worksheets:
-        # シート名の年号更新
         if year_mode.startswith("すべての年号"):
             new_title = shift_all_years_in_text(sheet.title)
             if new_title != sheet.title:
@@ -119,7 +113,6 @@ if uploaded_file is not None:
         elif year_mode == "特定の年だけを指定して書き換える" and target_old_year and target_old_year in sheet.title:
             sheet.title = sheet.title.replace(target_old_year, target_new_year)
 
-        # シートから「何月」かを取得
         sheet_month = None
         m_title = re.search(r'(\d{1,2})月', sheet.title)
         if m_title:
@@ -133,7 +126,6 @@ if uploaded_file is not None:
                 if isinstance(val, str) and val.startswith("="):
                     continue
 
-                # 1. 日付データの更新
                 if isinstance(val, (datetime.datetime, datetime.date)):
                     if year_mode.startswith("すべての年号"):
                         try:
@@ -153,7 +145,6 @@ if uploaded_file is not None:
                 if isinstance(val, datetime.time) or isinstance(val, bool):
                     continue
 
-                # 2. 文字列内の年号更新
                 if isinstance(val, str):
                     if year_mode.startswith("すべての年号"):
                         new_val = shift_all_years_in_text(val)
@@ -165,9 +156,7 @@ if uploaded_file is not None:
                         updated_date_count += 1
                     continue
 
-                # 3. 数値の処理
                 if isinstance(val, (int, float)):
-                    # 単独の西暦数値（2025, 2026, 2027など）
                     if isinstance(val, int) and 2020 <= val <= 2035:
                         if year_mode.startswith("すべての年号"):
                             cell.value = val + 1
@@ -177,7 +166,6 @@ if uploaded_file is not None:
                             updated_date_count += 1
                         continue
 
-                    # カレンダー日付（1〜31）＋隣に曜日がある場合の保護＆曜日更新
                     is_calendar_day = False
                     if isinstance(val, int) and 1 <= val <= 31:
                         neighbors = [
@@ -199,21 +187,17 @@ if uploaded_file is not None:
                     if is_calendar_day:
                         continue
 
-                    # 保護ルール1：小数の保護（単価など）
                     if keep_decimals and isinstance(val, float) and not val.is_integer():
                         continue
 
-                    # 保護ルール2：左隣のセルに保護キーワードがある場合（基本料金など）
                     if cell.column > 1 and keyword_list:
                         left_val = sheet.cell(row=cell.row, column=cell.column - 1).value
                         if isinstance(left_val, str) and any(kw in left_val for kw in keyword_list):
                             continue
 
-                    # 上記以外はクリア
                     cell.value = None
                     cleared_count += 1
 
-    # ファイル名の自動提案
     default_new_name = shift_all_years_in_text(original_name) if year_mode.startswith("すべての年号") else f"{original_name}_コピー"
     if default_new_name == original_name:
         default_new_name = f"{original_name}_コピー"
@@ -225,11 +209,18 @@ if uploaded_file is not None:
     st.divider()
     st.success(f"✅ プレビュー準備完了：数値 **{cleared_count} 箇所** をクリアし、年号・日付・曜日を **{updated_date_count} 箇所** 更新しました。")
 
-    # ダウンロードUI
-    integrated_html = f"""
+    html_template = """
     <html>
     <head>
     <style>
-        body {{ margin: 0; padding: 4px 2px; font-family: "Source Sans Pro", sans-serif; color: #31333F; }}
-        .label {{ font-size: 14px; margin-bottom: 8px; display: block; }}
-        .input-group {{ display: flex; align-items: center; margin-bottom: 20px; }}
+        body { margin: 0; padding: 4px 2px; font-family: sans-serif; color: #31333F; }
+        .label { font-size: 14px; margin-bottom: 8px; display: block; }
+        .input-group { display: flex; align-items: center; margin-bottom: 20px; }
+        .text-input { flex: 1; padding: 10px 12px; font-size: 16px; border: 1px solid #D3D3D3; border-radius: 8px; background-color: #F0F2F6; color: #31333F; outline: none; }
+        .text-input:focus { border-color: #FF4B4B; background-color: #FFFFFF; }
+        .ext-badge { margin-left: 8px; font-size: 16px; font-weight: bold; color: #555; }
+        .btn { background-color: #FF4B4B; color: white; border: none; padding: 12px 24px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+        .btn:hover { background-color: #FF3333; }
+    </style>
+    </head>
+    <body>
