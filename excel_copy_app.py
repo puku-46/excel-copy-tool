@@ -12,7 +12,7 @@ if uploaded_file is not None:
     keep_vba = (ext.lower() == ".xlsm")
     wb = openpyxl.load_workbook(uploaded_file, keep_vba=keep_vba)
 
-    # 1. 事前スキャン（年号の検出）
+    # 1. 事前スキャン
     found_years = set()
     for sheet in wb.worksheets:
         for row in sheet.iter_rows():
@@ -45,12 +45,11 @@ if uploaded_file is not None:
     st.subheader("🧹 2. 数値クリアのルール")
     c3, c4 = st.columns(2)
     keep_dec = c3.checkbox("小数の数値（単価など）は残す", value=True)
-    kw_str = c4.text_input("残したい項目のキーワード", value="基本料金,単価,単年割,割合")
+    kw_str = c4.text_input("残したい項目のキーワード", value="基本料金,単価,単年割,割合,燃調費,再エネ,市場価格")
     kw_list = [k.strip() for k in kw_str.split(",") if k.strip()]
 
     # 2. 変換処理
     cleared, updated = 0, 0
-    WD_JP = ["月", "火", "水", "木", "金", "土", "日"]
     shift_year = lambda s: re.sub(r'20(2\d|3[0-5])', lambda m: str(int(m.group(0)) + 1), s)
 
     for sheet in wb.worksheets:
@@ -58,9 +57,6 @@ if uploaded_file is not None:
             sheet.title = shift_year(sheet.title)
         elif year_mode == "特定の年だけ指定して書き換える" and old_y:
             sheet.title = sheet.title.replace(old_y, new_y)
-
-        m_t = re.search(r'(\d{1,2})月', sheet.title)
-        s_month = int(m_t.group(1)) if m_t else None
 
         for row in sheet.iter_rows():
             for cell in row:
@@ -86,20 +82,16 @@ if uploaded_file is not None:
                         elif year_mode == "特定の年だけ指定して書き換える" and old_y.isdigit() and v == int(old_y):
                             cell.value, updated = int(new_y), updated + 1
                         continue
-                    is_day = False
-                    if isinstance(v, int) and 1 <= v <= 31:
-                        for nb in [sheet.cell(cell.row, cell.column + 1), sheet.cell(cell.row + 1, cell.column)]:
-                            if isinstance(nb.value, str) and re.search(r'[月火水木金土日]', nb.value.strip()) and len(nb.value.strip()) <= 4:
-                                is_day = True
-                                if year_mode != "変更しない" and s_month and 1 <= s_month <= 12:
-                                    ty = int(new_y) if (year_mode == "特定の年だけ指定して書き換える" and new_y.isdigit()) else 2027
-                                    if v <= calendar.monthrange(ty, s_month)[1]:
-                                        nwd = WD_JP[datetime.date(ty, s_month, v).weekday()]
-                                        nb.value = re.sub(r'[月火水木金土日]', nwd, nb.value)
-                                        updated += 1
-                    if is_day or (keep_dec and isinstance(v, float) and not v.is_integer()):
+                    if keep_dec and isinstance(v, float) and not v.is_integer():
                         continue
-                    if cell.column > 1 and any(k in str(sheet.cell(cell.row, cell.column - 1).value or "") for k in kw_list):
+                    # 左隣または2つ左のセルに保護キーワードがあれば残す（セル結合対策）
+                    protected = False
+                    for offset in:
+                        if cell.column > offset:
+                            left_v = str(sheet.cell(cell.row, cell.column - offset).value or "")
+                            if any(k in left_v for k in kw_list):
+                                protected = True
+                    if protected:
                         continue
                     cell.value = None
                     cleared += 1
@@ -111,6 +103,6 @@ if uploaded_file is not None:
     wb.save(buf)
     b64 = base64.b64encode(buf.getvalue()).decode()
 
-    st.success(f"✅ 完了：数値 **{cleared} 箇所** クリア / 年号・曜日 **{updated} 箇所** 更新")
+    st.success(f"✅ 完了：数値 **{cleared} 箇所** クリア / 年号・日付 **{updated} 箇所** 更新")
     html = f'<input id="fn" value="{def_name}" style="padding:8px;width:65%;font-size:16px;"> <b>{ext}</b><br><br><button onclick="dl()" style="background:#FF4B4B;color:#fff;border:none;padding:10px 20px;font-size:16px;border-radius:6px;cursor:pointer;">📥 ダウンロード</button><script>function dl(){{let n=document.getElementById("fn").value||"{def_name}";let b=atob("{b64}"),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);let u=URL.createObjectURL(new Blob([a],{{type:"application/octet-stream"}}));let l=document.createElement("a");l.href=u;l.download=n+"{ext}";l.click();}}</script>'
     components.html(html, height=110)
