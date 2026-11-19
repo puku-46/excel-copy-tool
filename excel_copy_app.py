@@ -1,6 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
-import openpyxl, io, base64, os, re, datetime, calendar
+import openpyxl, io, base64, os, re, datetime
 
 st.set_page_config(page_title="エクセル白紙化コピーツール", layout="centered")
 st.title("📄 エクセル白紙化コピーツール")
@@ -84,9 +84,8 @@ if uploaded_file is not None:
                         continue
                     if keep_dec and isinstance(v, float) and not v.is_integer():
                         continue
-                    # 左隣または2つ左のセルに保護キーワードがあれば残す（セル結合対策）
                     protected = False
-                    for offset in:
+                    for offset in (1, 2):
                         if cell.column > offset:
                             left_v = str(sheet.cell(cell.row, cell.column - offset).value or "")
                             if any(k in left_v for k in kw_list):
