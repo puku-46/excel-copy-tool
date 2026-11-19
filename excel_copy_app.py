@@ -2,8 +2,22 @@ import streamlit as st
 import streamlit.components.v1 as components
 import openpyxl, io, base64, os, re, datetime
 
-st.set_page_config(page_title="エクセル白紙化コピーツール", layout="centered")
-st.title("📄 エクセル白紙化コピーツール")
+# 専用アイコン（画像ファイルを使う場合は "icon.png" に変更）
+st.set_page_config(
+    page_title="エクセル白紙化コピーツール",
+    page_icon="1-3.png",
+    layout="centered"
+)
+
+st.title("📊 エクセル白紙化コピーツール")
+st.caption("レイアウト・色・計算式はそのまま残し、手入力の数値クリアと年度更新を自動で行います。")
+
+with st.expander("📖 初めて使う方へ（かんたん3ステップ）"):
+    st.markdown("""
+    1. **ファイルをドロップ**：コピー元のエクセル（`.xlsx` / `.xlsm`）を枠内にドラッグ＆ドロップします。
+    2. **ルールを確認**：年号の自動スライド（+1年）や、残したい単価のキーワードを確認します。
+    3. **ダウンロード**：新しいファイル名を確認し、赤いボタンを押すとダウンロードフォルダに保存されます。
+    """)
 
 uploaded_file = st.file_uploader("エクセルを選択（またはドロップ）", type=["xlsx", "xlsm"])
 
