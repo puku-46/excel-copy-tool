@@ -8,25 +8,21 @@ import re
 import datetime
 import calendar
 
-st.set_page_config(page_title="エクセル白紙化コピーツール（事前チェック版）", layout="centered")
+st.set_page_config(page_title="エクセル白紙化コピーツール", layout="centered")
 
 st.title("📄 エクセル白紙化コピーツール")
-st.write("アップロードしたエクセルを解析し、**変更対象を確認してから**レイアウト・計算式を残したコピーを作成します。")
+st.write("アップロードしたエクセルを解析し、変更対象を確認してからコピーを作成します。")
 
-uploaded_file = st.file_uploader(
-    "コピー元のエクセルファイルを選択（またはここにドロップ）", 
-    type=["xlsx", "xlsm"]
-)
+uploaded_file = st.file_uploader("コピー元のエクセルファイルを選択（またはここにドロップ）", type=["xlsx", "xlsm"])
 
 if uploaded_file is not None:
     original_name, ext = os.path.splitext(uploaded_file.name)
     keep_vba = (ext.lower() == ".xlsm")
-    
     wb_scan = openpyxl.load_workbook(uploaded_file, keep_vba=keep_vba)
-    
+
     found_years = set()
     found_samples = []
-    
+
     for sheet in wb_scan.worksheets:
         for row in sheet.iter_rows():
             for cell in row:
@@ -48,7 +44,7 @@ if uploaded_file is not None:
 
     st.divider()
     st.subheader("🔍 1. 事前チェック：検出された年号・日付")
-    
+
     if found_years:
         sorted_years = sorted(list(found_years))
         st.info(f"シート内から年号 **{', '.join(sorted_years)}** が見つかりました。（例: {', '.join(found_samples)}）")
@@ -76,18 +72,18 @@ if uploaded_file is not None:
 
     st.divider()
     st.subheader("🧹 2. 数値クリアのルール設定")
-    
+
     col_opt1, col_opt2 = st.columns(2)
     with col_opt1:
-        keep_decimals = st.checkbox("小数点を含む数値（単価など）は残す", value=True, help="例: 17.43 や -3.8 などの固定単価を保護します")
+        keep_decimals = st.checkbox("小数点を含む数値（単価など）は残す", value=True)
     with col_opt2:
-        protect_keywords = st.text_input("残したい項目のキーワード（カンマ区切り）", value="基本料金,単価,単年割,割合", help="左隣にこの文字がある数値は消さずに残します")
+        protect_keywords = st.text_input("残したい項目のキーワード（カンマ区切り）", value="基本料金,単価,単年割,割合")
 
     keyword_list = [k.strip() for k in protect_keywords.split(",") if k.strip()]
 
     uploaded_file.seek(0)
     wb = openpyxl.load_workbook(uploaded_file, keep_vba=keep_vba)
-    
+
     cleared_count = 0
     updated_date_count = 0
     WEEKDAYS_JP = ["月", "火", "水", "木", "金", "土", "日"]
@@ -209,18 +205,18 @@ if uploaded_file is not None:
     st.divider()
     st.success(f"✅ プレビュー準備完了：数値 **{cleared_count} 箇所** をクリアし、年号・日付・曜日を **{updated_date_count} 箇所** 更新しました。")
 
-    html_template = """
-    <html>
-    <head>
-    <style>
-        body { margin: 0; padding: 4px 2px; font-family: sans-serif; color: #31333F; }
-        .label { font-size: 14px; margin-bottom: 8px; display: block; }
-        .input-group { display: flex; align-items: center; margin-bottom: 20px; }
-        .text-input { flex: 1; padding: 10px 12px; font-size: 16px; border: 1px solid #D3D3D3; border-radius: 8px; background-color: #F0F2F6; color: #31333F; outline: none; }
-        .text-input:focus { border-color: #FF4B4B; background-color: #FFFFFF; }
-        .ext-badge { margin-left: 8px; font-size: 16px; font-weight: bold; color: #555; }
-        .btn { background-color: #FF4B4B; color: white; border: none; padding: 12px 24px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
-        .btn:hover { background-color: #FF3333; }
-    </style>
-    </head>
-    <body>
+    html_lines = [
+        '<html><head><style>',
+        'body { margin: 0; padding: 4px 2px; font-family: sans-serif; color: #31333F; }',
+        '.label { font-size: 14px; margin-bottom: 8px; display: block; }',
+        '.input-group { display: flex; align-items: center; margin-bottom: 20px; }',
+        '.text-input { flex: 1; padding: 10px 12px; font-size: 16px; border: 1px solid #D3D3D3; border-radius: 8px; background-color: #F0F2F6; color: #31333F; outline: none; }',
+        '.ext-badge { margin-left: 8px; font-size: 16px; font-weight: bold; color: #555; }',
+        '.btn { background-color: #FF4B4B; color: white; border: none; padding: 12px 24px; font-size: 16px; font-weight: bold; border-radius: 8px; cursor: pointer; }',
+        '.btn:hover { background-color: #FF3333; }',
+        '</style></head><body>',
+        '<label class="label">新しいファイル名</label>',
+        '<div class="input-group">',
+        f'<input type="text" id="filenameInput" class="text-input" value="{default_new_name}">',
+        f'<span class="ext-badge">{ext}</span>',
+        '</div>',
