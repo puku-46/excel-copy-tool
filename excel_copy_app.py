@@ -1,4 +1,4 @@
-%%writefile excel_copy_app.py
+
 import streamlit as st
 import io
 import os
